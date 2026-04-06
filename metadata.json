@@ -1,0 +1,7 @@
+{
+  "name": "Remix: Remix: Orchestrix",
+  "description": "Standalone Multi-Agent Research Platform for intelligent data synthesis and academic planning.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
