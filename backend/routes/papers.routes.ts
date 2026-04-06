@@ -1,12 +1,12 @@
 import { Router } from "express";
-import db from "../db/database";
+import pool from "../db/database";
 
 const router = Router();
 
-router.patch("/:id/notes", (req, res) => {
+router.patch("/:id/notes", async (req, res) => {
   const { notes } = req.body;
   try {
-    db.prepare("UPDATE papers SET user_notes = ? WHERE id = ?").run(notes, req.params.id);
+    await pool.query("UPDATE papers SET user_notes = $1 WHERE id = $2", [notes, req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Failed to update notes" });

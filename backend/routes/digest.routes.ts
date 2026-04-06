@@ -1,26 +1,36 @@
 import { Router } from "express";
 import cron from "node-cron";
-import db from "../db/database";
+import pool from "../db/database";
 
 const router = Router();
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { userId, query, intervalHours } = req.body;
   if (!userId || !query || !intervalHours) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const result = db.prepare(`
-    INSERT INTO subscriptions (user_id, query, interval_hours)
-    VALUES (?, ?, ?)
-  `).run(userId, query, intervalHours);
+  try {
+    const { rows } = await pool.query(`
+      INSERT INTO subscriptions (user_id, query, interval_hours)
+      VALUES ($1, $2, $3) RETURNING id
+    `, [userId, query, intervalHours]);
 
-  cron.schedule(`0 */${intervalHours} * * *`, () => {
-    console.log(`[SCHEDULED] Running digest for ${userId}: ${query}`);
-    db.prepare("UPDATE subscriptions SET last_run = CURRENT_TIMESTAMP WHERE id = ?").run(result.lastInsertRowid);
-  });
+    const subId = rows[0].id;
 
-  res.json({ status: "Subscribed", nextRun: `In ${intervalHours} hours` });
+    cron.schedule(`0 */${intervalHours} * * *`, async () => {
+      console.log(`[SCHEDULED] Running digest for ${userId}: ${query}`);
+      try {
+        await pool.query("UPDATE subscriptions SET last_run = CURRENT_TIMESTAMP WHERE id = $1", [subId]);
+      } catch (err) {
+        console.error("Failed to update subscription last_run", err);
+      }
+    });
+
+    res.json({ status: "Subscribed", nextRun: `In ${intervalHours} hours` });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to subscribe" });
+  }
 });
 
 export default router;

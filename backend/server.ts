@@ -5,6 +5,7 @@ import fs from "fs";
 import "dotenv/config";
 
 import apiRoutes from "./routes/index";
+import { initDB } from "./db/database";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,6 +40,11 @@ app.get("*", (req, res) => {
   }
 });
 
-app.listen(PORT as number, "0.0.0.0", () => {
-  console.log(`Full-stack Server running on http://0.0.0.0:${PORT}`);
+// Initialize DB and start server
+initDB().then(() => {
+  app.listen(PORT as number, "0.0.0.0", () => {
+    console.log(`Full-stack Server running on http://0.0.0.0:${PORT}`);
+  });
+}).catch(err => {
+  console.error("Failed to initialize database:", err);
 });
