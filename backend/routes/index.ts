@@ -7,6 +7,7 @@ import digestRoutes from "./digest.routes";
 import queriesRoutes from "./queries.routes";
 import papersRoutes from "./papers.routes";
 import compareRoutes from "./compare.routes";
+import geminiRoutes from "./gemini.routes";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use("/papers", papersRoutes);
 router.use("/sandbox", sandboxRoutes);
 router.use("/compare-sessions", compareRoutes);
 router.use("/subscribe-digest", digestRoutes);
+router.use("/gemini", geminiRoutes);
 router.use("/", searchRoutes); // Mounts /academic/search, /openalex/search, /arxiv/search, /search/all
 
 export default router;

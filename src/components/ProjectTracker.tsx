@@ -14,10 +14,7 @@ import {
   X,
   ArrowRight
 } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { cn } from '../lib/utils';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface Task {
   id: number;
@@ -156,21 +153,14 @@ export default function ProjectTracker() {
 
     try {
       const existing = tasks.map(t => t.label).join(', ') || 'none yet';
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Project: "${projectName}". Existing tasks: ${existing}. Suggest 6 new tasks not yet listed.`,
-        config: {
-          systemInstruction: "You are a project planning assistant. Return ONLY a valid JSON array of 6 short, specific, actionable task strings. No markdown, no preamble, no explanation.",
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          }
-        }
+      const response = await fetch('/api/gemini/task-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectName, existingTasks: existing })
       });
 
-      const data = JSON.parse(response.text || '[]');
-      setSuggestions(data);
+      const data = await response.json();
+      setSuggestions(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to fetch suggestions:', err);
     } finally {

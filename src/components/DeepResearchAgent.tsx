@@ -13,11 +13,8 @@ import {
   ArrowRight,
   Sparkles
 } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface GroundingSource {
   title: string;
@@ -52,49 +49,23 @@ export default function DeepResearchAgent() {
     setReport(null);
 
     try {
-      const refinedPrompt = `
-        Perform authentic, deep research on: "${query}".
-        
-        Requirements:
-        1. Prioritize peer-reviewed papers, technical documentation, and verified data.
-        2. Provide a structured report with sections: Executive Summary, Technical Breakthroughs, Current Challenges, and Future Outlook.
-        3. Avoid anecdotal evidence or non-verified blog posts.
-        4. Include specific data points and metrics where available.
-        5. Use a professional, academic tone.
-      `;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: refinedPrompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
+      const response = await fetch('/api/gemini/deep-research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
       });
 
-      const content = response.text || "No research data could be synthesized.";
-      const sources: GroundingSource[] = [];
-      
-      // Extract grounding sources
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (chunks) {
-        chunks.forEach((chunk: any) => {
-          if (chunk.web?.uri && chunk.web?.title) {
-            // Avoid duplicates
-            if (!sources.find(s => s.uri === chunk.web.uri)) {
-              sources.push({
-                title: chunk.web.title,
-                uri: chunk.web.uri
-              });
-            }
-          }
-        });
+      if (!response.ok) {
+        throw new Error('Deep research failed');
       }
+
+      const data = await response.json();
 
       const newReport: ResearchReport = {
         query,
-        content,
-        sources,
-        timestamp: new Date().toISOString()
+        content: data.content || "No research data could be synthesized.",
+        sources: data.sources || [],
+        timestamp: data.timestamp || new Date().toISOString()
       };
 
       setReport(newReport);

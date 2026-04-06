@@ -1,47 +1,59 @@
 import { Router } from "express";
-import db from "../db/database";
+import { db } from "../db/supabase";
 
 const router = Router();
 
-router.get("/", (req, res) => {
-  const notes = db.prepare("SELECT * FROM notes ORDER BY updated_at DESC").all();
-  res.json(notes.map((n: any) => ({ ...n, tags: JSON.parse(n.tags) })));
+router.get("/", async (req, res) => {
+  try {
+    const notes = await db.notes.getAll();
+    res.json(notes.map((n: any) => ({ ...n, tags: n.tags || [] })));
+  } catch (err: any) {
+    console.error('Error fetching notes:', err);
+    res.status(500).json({ error: "Failed to fetch notes" });
+  }
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { title, content, color, tags, linked_paper_id } = req.body;
   try {
-    const result = db.prepare(`
-      INSERT INTO notes (title, content, color, tags, linked_paper_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(title || "", content || "", color || "#7c5cfc", JSON.stringify(tags || []), linked_paper_id || null);
-    
-    const newNote = db.prepare("SELECT * FROM notes WHERE id = ?").get(result.lastInsertRowid);
-    res.json({ ...(newNote as any), tags: JSON.parse((newNote as any).tags) });
-  } catch (err) {
+    const newNote = await db.notes.create({
+      title: title || "",
+      content: content || "",
+      color: color || "#7c5cfc",
+      tags: tags || [],
+      linked_paper_id: linked_paper_id || null
+    });
+    res.json({ ...newNote, tags: newNote.tags || [] });
+  } catch (err: any) {
+    console.error('Error creating note:', err);
     res.status(500).json({ error: "Failed to create note" });
   }
 });
 
-router.put("/:id", (req, res) => {
+router.put("/:id", async (req, res) => {
   const { title, content, color, tags, linked_paper_id } = req.body;
   try {
-    db.prepare(`
-      UPDATE notes 
-      SET title = ?, content = ?, color = ?, tags = ?, linked_paper_id = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(title, content, color, JSON.stringify(tags || []), linked_paper_id, req.params.id);
+    await db.notes.update(parseInt(req.params.id), {
+      title,
+      content,
+      color,
+      tags: tags || [],
+      linked_paper_id,
+      updated_at: new Date().toISOString()
+    });
     res.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
+    console.error('Error updating note:', err);
     res.status(500).json({ error: "Failed to update note" });
   }
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
-    db.prepare("DELETE FROM notes WHERE id = ?").run(req.params.id);
+    await db.notes.delete(parseInt(req.params.id));
     res.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
+    console.error('Error deleting note:', err);
     res.status(500).json({ error: "Failed to delete note" });
   }
 });

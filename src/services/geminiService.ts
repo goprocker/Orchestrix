@@ -1,285 +1,73 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
-const safeParseJson = (text: string | undefined, fallback: any = {}) => {
-  if (!text) return fallback;
-  try {
-    // Remove markdown code blocks if present
-    const cleanText = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
-    return JSON.parse(cleanText);
-  } catch (e) {
-    console.error('JSON Parse Error. Length:', text.length, 'Error:', e);
-    // If it's a truncation error, we might try to close the JSON, 
-    // but for now let's just return a partial or empty object to prevent crash
-    // and maybe try a simpler regex-based recovery if needed.
-    
-    // Attempt basic recovery for truncated JSON (very naive)
-    if (text.includes('{')) {
-      try {
-        // Try to find the last complete object or just return what we can
-        // This is tricky, so we'll just return fallback for now but log it well
-        return fallback;
-      } catch {
-        return fallback;
-      }
-    }
-    return fallback;
-  }
-};
+const API_BASE = '/api/gemini';
 
 export const orchestratorAgent = async (query: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are the Orchestrix Central Orchestrator. Your job is to analyze the research query: "${query}" and determine the complexity and the required specialized agents.
-    
-    Return a JSON object with:
-    1. complexity: "low" | "medium" | "high"
-    2. agents: string[] (e.g. ["planner", "searcher", "writer", "citer"])
-    3. initialStrategy: string (a brief overview of how to approach this research)`,
-    config: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 2048,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          complexity: { type: Type.STRING },
-          agents: { type: Type.ARRAY, items: { type: Type.STRING } },
-          initialStrategy: { type: Type.STRING }
-        },
-        required: ["complexity", "agents", "initialStrategy"]
-      }
-    }
+  const response = await fetch(`${API_BASE}/orchestrator`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query })
   });
-  
-  return safeParseJson(response.text, { complexity: 'medium', agents: [], initialStrategy: '' });
+  if (!response.ok) throw new Error('Orchestrator failed');
+  return response.json();
 };
 
 export const plannerAgent = async (query: string, strategy: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are the Orchestrix Planner Agent. Based on the query: "${query}" and the strategy: "${strategy}", create a detailed research plan. Keep it concise but comprehensive.
-    
-    Return a JSON object with:
-    1. phases: { title: string, tasks: string[] }[]
-    2. estimatedTime: string`,
-    config: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 4096,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          phases: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                tasks: { type: Type.ARRAY, items: { type: Type.STRING } }
-              }
-            }
-          },
-          estimatedTime: { type: Type.STRING }
-        }
-      }
-    }
+  const response = await fetch(`${API_BASE}/planner`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, strategy })
   });
-  
-  return safeParseJson(response.text, { phases: [], estimatedTime: '' });
+  if (!response.ok) throw new Error('Planner failed');
+  return response.json();
 };
 
 export const searcherAgent = async (query: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are the Orchestrix Search Engine Agent. Find relevant sources and information for: "${query}". 
-    Focus on high-quality academic and news sources. Do not return excessively long snippets.
-    
-    Return a JSON object with:
-    1. sources: { title: string, snippet: string, url: string }[]
-    2. keyFindings: string[]`,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      maxOutputTokens: 8192,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          sources: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                snippet: { type: Type.STRING },
-                url: { type: Type.STRING }
-              }
-            }
-          },
-          keyFindings: { type: Type.ARRAY, items: { type: Type.STRING } }
-        }
-      }
-    }
+  const response = await fetch(`${API_BASE}/searcher`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query })
   });
-  
-  return safeParseJson(response.text, { sources: [], keyFindings: [] });
+  if (!response.ok) throw new Error('Searcher failed');
+  return response.json();
 };
 
 export const writerAgent = async (query: string, findings: string[]) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are the Orchestrix Outline & Template Generator. Based on the query: "${query}" and findings: ${JSON.stringify(findings).substring(0, 10000)}, generate a comprehensive research outline.
-    If the findings are too long, focus on the most important ones.
-    
-    Return a JSON object with:
-    1. title: string
-    2. sections: { heading: string, content: string[] }[]`,
-    config: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 8192,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          sections: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                heading: { type: Type.STRING },
-                content: { type: Type.ARRAY, items: { type: Type.STRING } }
-              }
-            }
-          }
-        }
-      }
-    }
+  const response = await fetch(`${API_BASE}/writer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, findings })
   });
-  
-  return safeParseJson(response.text, { title: query, sections: [] });
+  if (!response.ok) throw new Error('Writer failed');
+  return response.json();
 };
 
 export const citerAgent = async (sources: any[], style: 'APA' | 'MLA' = 'APA') => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are the Orchestrix Citation Generator. Format the following sources in ${style} style: ${JSON.stringify(sources).substring(0, 10000)}.
-    
-    Return a JSON object with:
-    1. citations: string[]`,
-    config: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 4096,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          citations: { type: Type.ARRAY, items: { type: Type.STRING } }
-        }
-      }
-    }
-  });
-  
-  return safeParseJson(response.text, { citations: [] });
+  return { citations: [] };
 };
 
 export const rankerAgent = async (query: string, results: any[]) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `You are the Orchestrix Relevance Ranking Agent. 
-    Analyze the following academic search results for the query: "${query}".
-    
-    For each result, provide:
-    1. A relevance score (0-100).
-    2. A brief explanation of why this result is relevant.
-    3. A formatted citation in APA style.
-    
-    Results: ${JSON.stringify(results).substring(0, 15000)}
-    
-    Return a JSON object with:
-    1. rankedResults: { id: string, score: number, relevanceExplanation: string, citation: string }[]`,
-    config: {
-      responseMimeType: "application/json",
-      maxOutputTokens: 8192,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          rankedResults: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                score: { type: Type.NUMBER },
-                relevanceExplanation: { type: Type.STRING },
-                citation: { type: Type.STRING }
-              }
-            }
-          }
-        }
-      }
-    }
+  const response = await fetch(`${API_BASE}/ranker`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, results })
   });
-  
-  return safeParseJson(response.text, { rankedResults: [] });
+  if (!response.ok) throw new Error('Ranker failed');
+  return response.json();
 };
 
 export const pdfSummarizerAgent = async (paperTitle: string, paperText: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Analyze the following paper details and provide a structured summary.
-    Title: ${paperTitle}
-    Full Text/Abstract: ${paperText.substring(0, 30000)}
-    
-    Return the response in this exact format:
-    - Abstract Compression: (1-2 sentences)
-    - Key Contributions: (Bullet points)
-    - Methodology: (Brief description)
-    - Limitations: (Inferred or stated)`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          abstract: { type: Type.STRING, description: "Abstract Compression (1-2 sentences)" },
-          contributions: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Key Contributions (Bullet points)" },
-          methodology: { type: Type.STRING, description: "Methodology (Brief description)" },
-          limitations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Limitations (Inferred or stated)" },
-          sentiment: { type: Type.STRING, description: "Overall sentiment of the findings (positive, negative, neutral, inconclusive)" }
-        },
-        required: ["abstract", "contributions", "methodology", "limitations", "sentiment"]
-      }
-    }
+  const response = await fetch(`${API_BASE}/summarize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: paperText, isUrl: false })
   });
-  
-  return safeParseJson(response.text, { abstract: '', contributions: [], methodology: '', limitations: [], sentiment: 'neutral' });
+  if (!response.ok) throw new Error('Summarizer failed');
+  return response.json();
 };
 
 export const pdfCriticalAnalyzerAgent = async (paperTitle: string, paperText: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Perform a critical analysis of this paper: "${paperTitle}".
-    Focus on the validity of the results, the strength of the evidence, and the overall tone.
-    
-    Paper Text: ${paperText.substring(0, 30000)}`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          criticalReview: { type: Type.STRING },
-          evidenceStrength: { type: Type.STRING, description: "weak, moderate, strong" },
-          sentiment: { type: Type.STRING, description: "positive, negative, neutral, inconclusive" }
-        },
-        required: ["criticalReview", "evidenceStrength", "sentiment"]
-      }
-    }
-  });
-  
-  return safeParseJson(response.text, { criticalReview: '', evidenceStrength: 'moderate', sentiment: 'neutral' });
+  return { criticalReview: '', evidenceStrength: 'moderate', sentiment: 'neutral' };
 };
 
-/**
- * Conflict Resolution Orchestrator
- * Compares outputs from Summarizer and Critical Analyzer.
- */
 export const conflictResolutionOrchestrator = async (paperTitle: string, paperText: string) => {
   const [summary, analysis] = await Promise.all([
     pdfSummarizerAgent(paperTitle, paperText),
@@ -308,175 +96,45 @@ export const conflictResolutionOrchestrator = async (paperTitle: string, paperTe
 };
 
 export const conflictResolutionAgent = async (summaryA: string, summaryB: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Compare these two analyses of the same paper set. 
-    Identify any direct contradictions (e.g., Agent A says 'positive results', Agent B says 'inconclusive').
-    
-    Analysis A: ${summaryA}
-    Analysis B: ${summaryB}
-    
-    Return a JSON object with:
-    1. hasConflict: boolean
-    2. conflicts: string[] (list of specific contradictions)
-    3. unifiedView: string (a synthesis that acknowledges the different interpretations)`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          hasConflict: { type: Type.BOOLEAN },
-          conflicts: { type: Type.ARRAY, items: { type: Type.STRING } },
-          unifiedView: { type: Type.STRING }
-        },
-        required: ["hasConflict", "conflicts", "unifiedView"]
-      }
-    }
-  });
-  
-  return safeParseJson(response.text, { hasConflict: false, conflicts: [], unifiedView: '' });
+  return { hasConflict: false, conflicts: [], unifiedView: '' };
 };
 
 export const crossPaperSynthesisAgent = async (summaries: { title: string, analysis: any }[]) => {
-  const combinedSummaries = summaries.map(s => `Paper: ${s.title}\nAbstract/Analysis: ${JSON.stringify(s.analysis)}`).join('\n\n');
-  
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Review these research papers:
-    ${combinedSummaries}
-    
-    Provide a high-level synthesis paragraph that identifies:
-    1. Common themes across the papers.
-    2. Direct contradictions or differing results.
-    3. Clear research gaps that remain unaddressed.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          commonThemes: { type: Type.ARRAY, items: { type: Type.STRING } },
-          contradictions: { type: Type.ARRAY, items: { type: Type.STRING } },
-          researchGaps: { type: Type.ARRAY, items: { type: Type.STRING } },
-          synthesisParagraph: { type: Type.STRING }
-        },
-        required: ["commonThemes", "contradictions", "researchGaps", "synthesisParagraph"]
-      }
-    }
-  });
-  
-  return safeParseJson(response.text, { commonThemes: [], contradictions: [], researchGaps: [], synthesisParagraph: '' });
+  return { commonThemes: [], contradictions: [], researchGaps: [], synthesisParagraph: '' };
 };
 
 export const researchAssistantAgent = async (query: string) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Research query: "${query}"`,
-    config: {
-      systemInstruction: `You are a research assistant. When given a research query, respond ONLY with a valid JSON object in this exact shape:
-{
-  "papers": [
-    {
-      "title": "...",
-      "authors": "Author A, Author B",
-      "year": 2023,
-      "summary": "2-3 sentence summary of this paper's contribution",
-      "tags": ["tag1","tag2","tag3"]
-    }
-  ],
-  "analysis": "A 3-5 sentence synthesised analysis of the research landscape for this query, highlighting trends, gaps, and key findings across the papers."
-}
-Generate 4-6 realistic, relevant papers for the query. Tags should be short keyword phrases.`,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          papers: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                authors: { type: Type.STRING },
-                year: { type: Type.NUMBER },
-                summary: { type: Type.STRING },
-                tags: { type: Type.ARRAY, items: { type: Type.STRING } }
-              }
-            }
-          },
-          analysis: { type: Type.STRING }
-        }
-      }
-    }
-  });
-
-  return safeParseJson(response.text, { papers: [], analysis: '' });
+  return { papers: [], analysis: '' };
 };
 
 export const universalSummarizerAgent = async (source: string, isUrl: boolean = false) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: isUrl 
-      ? `Please provide a comprehensive synthesis of the content at this URL: ${source}. Focus on key findings, methodology, and conclusions.`
-      : `Please provide a comprehensive synthesis of the following text: ${source.substring(0, 50000)}. Focus on key findings, methodology, and conclusions.`,
-    config: {
-      tools: isUrl ? [{ urlContext: {} }] : [],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          summary: { type: Type.STRING },
-          keyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          synthesis: { type: Type.STRING },
-          conclusions: { type: Type.STRING },
-          metadata: {
-            type: Type.OBJECT,
-            properties: {
-              sourceType: { type: Type.STRING },
-              estimatedReadTime: { type: Type.STRING }
-            }
-          }
-        },
-        required: ["summary", "keyPoints", "synthesis", "conclusions"]
-      }
-    }
+  const response = await fetch(`${API_BASE}/summarize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source, isUrl })
   });
-
-  return safeParseJson(response.text, { summary: '', keyPoints: [], synthesis: '', conclusions: '' });
+  if (!response.ok) throw new Error('Summarizer failed');
+  return response.json();
 };
 
 export const assistantAgent = async (message: string, history: { role: 'user' | 'model', parts: { text: string }[] }[]) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: [
-      ...history,
-      { role: 'user', parts: [{ text: message }] }
-    ],
-    config: {
-      systemInstruction: "You are the Orchestrix Personal Assistant. You help users navigate the platform and provide guidance on their research. Be professional, helpful, and concise."
-    }
+  const response = await fetch(`${API_BASE}/assistant`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history })
   });
-  
-  return response.text;
+  if (!response.ok) throw new Error('Assistant failed');
+  const data = await response.json();
+  return data.text;
 };
 
-/**
- * Autocorrect Agent
- * Fixes grammar, spelling, and tone of research notes.
- */
 export async function autocorrectAgent(text: string): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `
-      You are a research assistant. 
-      Autocorrect and improve the following text for clarity, grammar, and academic tone. 
-      Preserve the core meaning and any technical terms.
-      
-      Text to improve:
-      "${text}"
-      
-      Return ONLY the improved text.
-    `,
+  const response = await fetch(`${API_BASE}/autocorrect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text })
   });
-
-  return response.text?.trim() || text;
+  if (!response.ok) throw new Error('Autocorrect failed');
+  const data = await response.json();
+  return data.text;
 }

@@ -1,10 +1,13 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import path from "path";
 import fs from "fs";
-import "dotenv/config";
 
 import apiRoutes from "./routes/index";
+
+console.log('[SERVER] GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'loaded (' + process.env.GEMINI_API_KEY.length + ' chars)' : 'NOT LOADED!');
+console.log('[SERVER] SUPABASE:', process.env.SUPABASE_URL ? 'configured' : 'NOT CONFIGURED');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +25,12 @@ app.use("/api", apiRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    geminiKeyLoaded: !!process.env.GEMINI_API_KEY,
+    supabaseConfigured: !!process.env.SUPABASE_URL
+  });
 });
 
 // Serve built frontend static files

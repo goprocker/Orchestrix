@@ -1,14 +1,15 @@
 import { Router } from "express";
-import db from "../db/database";
+import { db } from "../db/supabase";
 
 const router = Router();
 
-router.patch("/:id/notes", (req, res) => {
+router.patch("/:id/notes", async (req, res) => {
   const { notes } = req.body;
   try {
-    db.prepare("UPDATE papers SET user_notes = ? WHERE id = ?").run(notes, req.params.id);
+    await db.papers.update(parseInt(req.params.id), { user_notes: notes });
     res.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
+    console.error('Error updating notes:', err);
     res.status(500).json({ error: "Failed to update notes" });
   }
 });
