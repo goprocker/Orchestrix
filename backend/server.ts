@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 
 import apiRoutes from "./routes/index";
+import { initDB } from "./db/database";
 
 console.log('[SERVER] GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'loaded (' + process.env.GEMINI_API_KEY.length + ' chars)' : 'NOT LOADED!');
 console.log('[SERVER] SUPABASE:', process.env.SUPABASE_URL ? 'configured' : 'NOT CONFIGURED');
@@ -47,6 +48,11 @@ app.get("*", (req, res) => {
   }
 });
 
-app.listen(PORT as number, "0.0.0.0", () => {
-  console.log(`Full-stack Server running on http://0.0.0.0:${PORT}`);
+// Initialize DB and start server
+initDB().then(() => {
+  app.listen(PORT as number, "0.0.0.0", () => {
+    console.log(`Full-stack Server running on http://0.0.0.0:${PORT}`);
+  });
+}).catch(err => {
+  console.error("Failed to initialize database:", err);
 });
